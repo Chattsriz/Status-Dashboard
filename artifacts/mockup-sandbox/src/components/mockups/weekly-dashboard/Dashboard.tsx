@@ -8,18 +8,23 @@ import {
   ChevronRight, AlertTriangle, FileText, Users, BarChart2,
 } from "lucide-react";
 
-type Status = "not-started" | "in-progress" | "completed" | "on-hold" | "delayed";
-type RiskLevel = "high" | "medium" | "low";
+/* ── Types ── */
+type Status    = "not-started" | "in-progress" | "completed" | "on-hold" | "delayed";
+type Priority  = "p1" | "p2" | "p3";
+type DrillRisk = "extreme" | "high" | "moderate" | "low" | "insignificant";
 
-interface ChartValues { high: number; medium: number; low: number }
+interface ChartValues {
+  extreme: number; high: number; moderate: number; low: number; insignificant: number;
+}
 
 interface Item {
   id: string;
   title: string;
   status: Status;
+  priority?: Priority;
+  startDate: string;
   dueDate: string;
   comment: string;
-  riskLevel?: RiskLevel;
   riskCategory?: string;
   chartValues?: ChartValues;
 }
@@ -31,12 +36,13 @@ interface Category {
   items: Item[];
 }
 
+/* ── Config ── */
 const STATUS_STYLES: Record<Status, { label: string; bg: string; text: string; dot: string; selectBg: string }> = {
-  "not-started": { label: "Not Started", bg: "bg-gray-100",    text: "text-gray-400",   dot: "bg-gray-300",  selectBg: "#f3f4f6" },
-  "in-progress": { label: "In Progress", bg: "bg-green-50",    text: "text-green-700",  dot: "bg-green-500", selectBg: "#f0fdf4" },
-  "completed":   { label: "Completed",   bg: "bg-blue-50",     text: "text-blue-700",   dot: "bg-blue-500",  selectBg: "#eff6ff" },
-  "on-hold":     { label: "On Hold",     bg: "bg-gray-200",    text: "text-gray-600",   dot: "bg-gray-500",  selectBg: "#e5e7eb" },
-  "delayed":     { label: "Delayed",     bg: "bg-amber-50",    text: "text-amber-700",  dot: "bg-amber-400", selectBg: "#fffbeb" },
+  "not-started": { label: "Not Started", bg: "bg-gray-100",  text: "text-gray-400",  dot: "bg-gray-300",  selectBg: "#f3f4f6" },
+  "in-progress": { label: "In Progress", bg: "bg-green-50",  text: "text-green-700", dot: "bg-green-500", selectBg: "#f0fdf4" },
+  "completed":   { label: "Completed",   bg: "bg-blue-50",   text: "text-blue-700",  dot: "bg-blue-500",  selectBg: "#eff6ff" },
+  "on-hold":     { label: "On Hold",     bg: "bg-gray-200",  text: "text-gray-600",  dot: "bg-gray-500",  selectBg: "#e5e7eb" },
+  "delayed":     { label: "Delayed",     bg: "bg-amber-50",  text: "text-amber-700", dot: "bg-amber-400", selectBg: "#fffbeb" },
 };
 
 const STATUS_CHART_COLOR: Record<Status, string> = {
@@ -47,62 +53,79 @@ const STATUS_CHART_COLOR: Record<Status, string> = {
   "delayed":     "#f59e0b",
 };
 
-const RISK_STYLES: Record<RiskLevel, { label: string; color: string; bg: string }> = {
-  high:   { label: "High",   color: "#ef4444", bg: "bg-red-100 text-red-700"     },
-  medium: { label: "Medium", color: "#f59e0b", bg: "bg-amber-100 text-amber-700" },
-  low:    { label: "Low",    color: "#22c55e", bg: "bg-green-100 text-green-700"  },
+const PRIORITY_STYLES: Record<Priority, { label: string; bg: string; text: string; border: string }> = {
+  p1: { label: "P1", bg: "bg-red-100",    text: "text-red-700",    border: "border-red-300"    },
+  p2: { label: "P2", bg: "bg-amber-100",  text: "text-amber-700",  border: "border-amber-300"  },
+  p3: { label: "P3", bg: "bg-blue-100",   text: "text-blue-700",   border: "border-blue-300"   },
 };
 
-const RISK_COLORS = { high: "#ef4444", medium: "#f59e0b", low: "#22c55e" };
+const DRILL_RISK_CONFIG: Record<DrillRisk, { label: string; color: string; bg: string; text: string }> = {
+  extreme:     { label: "Extreme",     color: "#b91c1c", bg: "bg-red-100",    text: "text-red-800"    },
+  high:        { label: "High",        color: "#ef4444", bg: "bg-red-50",     text: "text-red-700"    },
+  moderate:    { label: "Moderate",    color: "#f59e0b", bg: "bg-amber-50",   text: "text-amber-700"  },
+  low:         { label: "Low",         color: "#22c55e", bg: "bg-green-50",   text: "text-green-700"  },
+  insignificant:{ label: "Insignificant", color: "#94a3b8", bg: "bg-slate-100", text: "text-slate-500" },
+};
+
+const DRILL_RISK_KEYS: DrillRisk[] = ["extreme", "high", "moderate", "low", "insignificant"];
 
 const CAT_STYLES = {
-  doc:   { gradient: "from-violet-600 to-indigo-500", border: "border-l-violet-500"  },
-  risk:  { gradient: "from-rose-600 to-orange-500",   border: "border-l-rose-500"    },
-  align: { gradient: "from-teal-600 to-cyan-500",     border: "border-l-teal-500"    },
+  doc:   { gradient: "from-violet-600 to-indigo-500", border: "border-l-violet-500" },
+  risk:  { gradient: "from-rose-600 to-orange-500",   border: "border-l-rose-500"   },
+  align: { gradient: "from-teal-600 to-cyan-500",     border: "border-l-teal-500"   },
 };
 
 const RISK_CATEGORIES = ["Infrastructure", "Compliance", "Vendor", "Security", "Operational"];
 
-const DEFAULT_CHART: ChartValues = { high: 2, medium: 3, low: 1 };
+const DEFAULT_CHART: ChartValues = { extreme: 1, high: 2, moderate: 3, low: 2, insignificant: 1 };
 
+/* ── Initial data ── */
 const initialCategories: Category[] = [
   {
     id: "doc", name: "Documentation", icon: "doc",
     items: [
-      { id: "d1", title: "API Reference Docs",   status: "in-progress", dueDate: "2026-05-09", comment: "" },
-      { id: "d2", title: "Onboarding Guide",     status: "on-hold",     dueDate: "2026-05-12", comment: "Waiting on design assets from the UX team." },
-      { id: "d3", title: "Release Notes v2.4",   status: "not-started", dueDate: "2026-05-16", comment: "" },
-      { id: "d4", title: "Internal Wiki Update", status: "completed",   dueDate: "2026-05-05", comment: "Merged and published." },
+      { id: "d1", title: "API Reference Docs",   status: "in-progress", priority: "p2", startDate: "2026-05-01", dueDate: "2026-05-09", comment: "" },
+      { id: "d2", title: "Onboarding Guide",     status: "on-hold",     priority: "p1", startDate: "2026-05-03", dueDate: "2026-05-12", comment: "Waiting on design assets from the UX team." },
+      { id: "d3", title: "Release Notes v2.4",   status: "not-started", priority: "p3", startDate: "",           dueDate: "2026-05-16", comment: "" },
+      { id: "d4", title: "Internal Wiki Update", status: "completed",   priority: "p3", startDate: "2026-04-28", dueDate: "2026-05-05", comment: "Merged and published." },
     ],
   },
   {
     id: "risk", name: "Risk Assessment", icon: "risk",
     items: [
-      { id: "r1", title: "Vendor Dependency",   status: "on-hold",     dueDate: "2026-05-07", comment: "Awaiting vendor SLA response.", riskLevel: "high",   riskCategory: "Vendor",         chartValues: { high: 4, medium: 2, low: 1 } },
-      { id: "r2", title: "Security Audit Q2",   status: "in-progress", dueDate: "2026-05-20", comment: "",                              riskLevel: "high",   riskCategory: "Security",       chartValues: { high: 3, medium: 4, low: 2 } },
-      { id: "r3", title: "Compliance Review",   status: "delayed",     dueDate: "2026-05-14", comment: "Policy update still pending.",  riskLevel: "medium", riskCategory: "Compliance",     chartValues: { high: 1, medium: 5, low: 3 } },
-      { id: "r4", title: "Infra Capacity Plan", status: "in-progress", dueDate: "2026-05-18", comment: "",                              riskLevel: "medium", riskCategory: "Infrastructure", chartValues: { high: 2, medium: 3, low: 4 } },
-      { id: "r5", title: "Ops Runbook",         status: "not-started", dueDate: "2026-05-22", comment: "",                              riskLevel: "low",    riskCategory: "Operational",    chartValues: { high: 0, medium: 2, low: 5 } },
+      { id: "r1", title: "Vendor Dependency",   status: "on-hold",     priority: "p1", startDate: "2026-04-28", dueDate: "2026-05-07", comment: "Awaiting vendor SLA response.", riskCategory: "Vendor",         chartValues: { extreme: 3, high: 2, moderate: 1, low: 1, insignificant: 0 } },
+      { id: "r2", title: "Security Audit Q2",   status: "in-progress", priority: "p1", startDate: "2026-05-01", dueDate: "2026-05-20", comment: "",                              riskCategory: "Security",       chartValues: { extreme: 1, high: 3, moderate: 2, low: 1, insignificant: 0 } },
+      { id: "r3", title: "Compliance Review",   status: "delayed",     priority: "p2", startDate: "2026-04-30", dueDate: "2026-05-14", comment: "Policy update still pending.",  riskCategory: "Compliance",     chartValues: { extreme: 0, high: 2, moderate: 4, low: 2, insignificant: 1 } },
+      { id: "r4", title: "Infra Capacity Plan", status: "in-progress", priority: "p2", startDate: "2026-05-02", dueDate: "2026-05-18", comment: "",                              riskCategory: "Infrastructure", chartValues: { extreme: 0, high: 1, moderate: 3, low: 3, insignificant: 2 } },
+      { id: "r5", title: "Ops Runbook",         status: "not-started", priority: "p3", startDate: "",           dueDate: "2026-05-22", comment: "",                              riskCategory: "Operational",    chartValues: { extreme: 0, high: 0, moderate: 2, low: 3, insignificant: 4 } },
     ],
   },
   {
     id: "align", name: "Alignment & Others", icon: "align",
     items: [
-      { id: "a1", title: "Cross-Team Sync",      status: "completed",   dueDate: "2026-05-05", comment: "Notes shared in Confluence." },
-      { id: "a2", title: "OKR Mid-Cycle Review", status: "in-progress", dueDate: "2026-05-14", comment: "" },
-      { id: "a3", title: "Stakeholder Deck",     status: "not-started", dueDate: "2026-05-19", comment: "" },
+      { id: "a1", title: "Cross-Team Sync",      status: "completed",   priority: "p2", startDate: "2026-04-29", dueDate: "2026-05-05", comment: "Notes shared in Confluence." },
+      { id: "a2", title: "OKR Mid-Cycle Review", status: "in-progress", priority: "p1", startDate: "2026-05-04", dueDate: "2026-05-14", comment: "" },
+      { id: "a3", title: "Stakeholder Deck",     status: "not-started", priority: "p3", startDate: "",           dueDate: "2026-05-19", comment: "" },
     ],
   },
 ];
 
-/* ── helpers ── */
-
+/* ── Shared helpers ── */
 function StatusBadge({ status }: { status: Status }) {
   const s = STATUS_STYLES[status];
   return (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${s.bg} ${s.text}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
       {s.label}
+    </span>
+  );
+}
+
+function PriorityBadge({ priority }: { priority: Priority }) {
+  const p = PRIORITY_STYLES[priority];
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold border ${p.bg} ${p.text} ${p.border}`}>
+      {p.label}
     </span>
   );
 }
@@ -114,51 +137,43 @@ function CategoryIcon({ icon }: { icon: "doc" | "risk" | "align" }) {
   return <Users className={cls} />;
 }
 
-/* ── Mini editable chart for risk cards ── */
-function MiniRiskCharts({
-  values,
-  onChange,
-}: {
-  values: ChartValues;
-  onChange: (v: ChartValues) => void;
-}) {
-  const pieData = (["high", "medium", "low"] as RiskLevel[])
-    .map(k => ({ name: k.charAt(0).toUpperCase() + k.slice(1), value: values[k], color: RISK_COLORS[k] }))
+/* ── Mini editable risk charts (on risk cards) ── */
+function MiniRiskCharts({ values, onChange }: { values: ChartValues; onChange: (v: ChartValues) => void }) {
+  const pieData = DRILL_RISK_KEYS
+    .map(k => ({ name: DRILL_RISK_CONFIG[k].label, value: values[k], color: DRILL_RISK_CONFIG[k].color }))
     .filter(d => d.value > 0);
 
-  const barData = [
-    { name: "H", value: values.high,   fill: RISK_COLORS.high   },
-    { name: "M", value: values.medium, fill: RISK_COLORS.medium },
-    { name: "L", value: values.low,    fill: RISK_COLORS.low    },
-  ];
+  const barData = DRILL_RISK_KEYS.map(k => ({
+    name: DRILL_RISK_CONFIG[k].label.slice(0, 3),
+    value: values[k],
+    fill: DRILL_RISK_CONFIG[k].color,
+  }));
 
-  const set = (key: keyof ChartValues, raw: string) => {
+  const set = (key: DrillRisk, raw: string) => {
     const n = Math.max(0, Math.min(99, parseInt(raw) || 0));
     onChange({ ...values, [key]: n });
   };
 
   return (
-    <div className="mt-1 space-y-2">
-      {/* Editable inputs */}
-      <div className="grid grid-cols-3 gap-1 text-center">
-        {(["high", "medium", "low"] as RiskLevel[]).map(k => (
-          <div key={k} className={`rounded-lg px-1.5 py-1.5 ${RISK_STYLES[k].bg}`}>
-            <p className="text-[9px] font-bold uppercase tracking-wide opacity-70 mb-0.5">{RISK_STYLES[k].label}</p>
+    <div className="mt-1 space-y-2 border-t border-gray-100 pt-2">
+      {/* Inputs */}
+      <div className="grid grid-cols-5 gap-1 text-center">
+        {DRILL_RISK_KEYS.map(k => (
+          <div key={k} className={`rounded-lg py-1.5 ${DRILL_RISK_CONFIG[k].bg}`}>
+            <p className={`text-[8px] font-bold uppercase tracking-wide mb-0.5 ${DRILL_RISK_CONFIG[k].text}`}>
+              {DRILL_RISK_CONFIG[k].label.slice(0, 3)}
+            </p>
             <input
-              type="number"
-              min={0}
-              max={99}
+              type="number" min={0} max={99}
               value={values[k]}
               onChange={e => set(k, e.target.value)}
-              className="w-full text-center text-sm font-bold bg-transparent border-none outline-none"
+              className={`w-full text-center text-sm font-bold bg-transparent border-none outline-none ${DRILL_RISK_CONFIG[k].text}`}
             />
           </div>
         ))}
       </div>
-
-      {/* Charts side-by-side */}
+      {/* Charts */}
       <div className="grid grid-cols-2 gap-1">
-        {/* Pie */}
         <div>
           <p className="text-[9px] text-gray-400 uppercase tracking-wide text-center mb-0.5">Distribution</p>
           {pieData.length > 0 ? (
@@ -174,13 +189,12 @@ function MiniRiskCharts({
             <div className="h-[90px] flex items-center justify-center text-[10px] text-gray-300">No data</div>
           )}
         </div>
-        {/* Bar */}
         <div>
           <p className="text-[9px] text-gray-400 uppercase tracking-wide text-center mb-0.5">Breakdown</p>
           <ResponsiveContainer width="100%" height={90}>
-            <BarChart data={barData} barSize={14} margin={{ top: 4, right: 2, left: -28, bottom: 0 }}>
-              <XAxis dataKey="name" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
-              <YAxis allowDecimals={false} tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
+            <BarChart data={barData} barSize={10} margin={{ top: 4, right: 2, left: -30, bottom: 0 }}>
+              <XAxis dataKey="name" tick={{ fontSize: 8 }} axisLine={false} tickLine={false} />
+              <YAxis allowDecimals={false} tick={{ fontSize: 8 }} axisLine={false} tickLine={false} />
               <Tooltip contentStyle={{ fontSize: 10 }} />
               <Bar dataKey="value" radius={[3, 3, 0, 0]}>
                 {barData.map((e, i) => <Cell key={i} fill={e.fill} />)}
@@ -194,9 +208,7 @@ function MiniRiskCharts({
 }
 
 /* ── Item card ── */
-function ItemCard({
-  item, catId, onUpdate, onDelete, isRisk,
-}: {
+function ItemCard({ item, catId, onUpdate, onDelete, isRisk }: {
   item: Item;
   catId: string;
   onUpdate: (id: string, patch: Partial<Item>) => void;
@@ -211,8 +223,8 @@ function ItemCard({
     <div className="group relative bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col">
       <div className={`h-1 w-full bg-gradient-to-r ${catStyle.gradient}`} />
 
-      <div className="p-4 flex flex-col gap-3 flex-1">
-        {/* Title + delete */}
+      <div className="p-4 flex flex-col gap-2.5 flex-1">
+        {/* Title + priority + delete */}
         <div className="flex items-start gap-2">
           <input
             value={item.title}
@@ -228,53 +240,73 @@ function ItemCard({
           </button>
         </div>
 
-        {/* Status */}
-        <select
-          value={item.status}
-          onChange={e => onUpdate(item.id, { status: e.target.value as Status })}
-          style={{ backgroundColor: st.selectBg }}
-          className={`self-start text-[11px] font-semibold px-2.5 py-1 rounded-full border-none outline-none cursor-pointer appearance-none ${st.text}`}
-        >
-          {(Object.keys(STATUS_STYLES) as Status[]).map(s => (
-            <option key={s} value={s}>{STATUS_STYLES[s].label}</option>
-          ))}
-        </select>
+        {/* Status + Priority row */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <select
+            value={item.status}
+            onChange={e => onUpdate(item.id, { status: e.target.value as Status })}
+            style={{ backgroundColor: st.selectBg }}
+            className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border-none outline-none cursor-pointer appearance-none ${st.text}`}
+          >
+            {(Object.keys(STATUS_STYLES) as Status[]).map(s => (
+              <option key={s} value={s}>{STATUS_STYLES[s].label}</option>
+            ))}
+          </select>
 
-        {/* Risk level + category */}
-        {isRisk && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <select
-              value={item.riskLevel ?? "low"}
-              onChange={e => onUpdate(item.id, { riskLevel: e.target.value as RiskLevel })}
-              className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border-none outline-none cursor-pointer appearance-none ${RISK_STYLES[item.riskLevel ?? "low"].bg}`}
-            >
-              {(Object.keys(RISK_STYLES) as RiskLevel[]).map(r => (
-                <option key={r} value={r}>{RISK_STYLES[r].label} Risk</option>
-              ))}
-            </select>
-            <select
-              value={item.riskCategory ?? ""}
-              onChange={e => onUpdate(item.id, { riskCategory: e.target.value })}
-              className="text-[11px] text-gray-500 bg-gray-50 border border-gray-200 rounded-full px-2 py-1 outline-none cursor-pointer"
-            >
-              <option value="">Category…</option>
-              {RISK_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-        )}
-
-        {/* Due date */}
-        <div className="flex items-center gap-1.5 text-gray-400">
-          <Calendar className="w-3 h-3 flex-shrink-0" />
-          <input
-            type="date"
-            value={item.dueDate}
-            onChange={e => onUpdate(item.id, { dueDate: e.target.value })}
-            className="text-[11px] text-gray-500 bg-transparent border-none outline-none cursor-pointer"
-          />
+          <select
+            value={item.priority ?? "p3"}
+            onChange={e => onUpdate(item.id, { priority: e.target.value as Priority })}
+            className={`text-[11px] font-bold px-2 py-1 rounded-md border outline-none cursor-pointer appearance-none ${
+              PRIORITY_STYLES[item.priority ?? "p3"].bg
+            } ${PRIORITY_STYLES[item.priority ?? "p3"].text} ${PRIORITY_STYLES[item.priority ?? "p3"].border}`}
+          >
+            <option value="p1">P1</option>
+            <option value="p2">P2</option>
+            <option value="p3">P3</option>
+          </select>
         </div>
 
-        {/* Comment */}
+        {/* Risk category (risk only) */}
+        {isRisk && (
+          <select
+            value={item.riskCategory ?? ""}
+            onChange={e => onUpdate(item.id, { riskCategory: e.target.value })}
+            className="text-[11px] text-gray-500 bg-gray-50 border border-gray-200 rounded-full px-2.5 py-1 outline-none cursor-pointer self-start"
+          >
+            <option value="">Risk category…</option>
+            {RISK_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        )}
+
+        {/* Start date + Due date */}
+        <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+          <div>
+            <p className="text-[9px] text-gray-400 uppercase tracking-wide font-medium mb-0.5">Start</p>
+            <div className="flex items-center gap-1 text-gray-400">
+              <Calendar className="w-3 h-3 flex-shrink-0" />
+              <input
+                type="date"
+                value={item.startDate}
+                onChange={e => onUpdate(item.id, { startDate: e.target.value })}
+                className="text-[11px] text-gray-500 bg-transparent border-none outline-none cursor-pointer w-full"
+              />
+            </div>
+          </div>
+          <div>
+            <p className="text-[9px] text-gray-400 uppercase tracking-wide font-medium mb-0.5">Due</p>
+            <div className="flex items-center gap-1 text-gray-400">
+              <Calendar className="w-3 h-3 flex-shrink-0" />
+              <input
+                type="date"
+                value={item.dueDate}
+                onChange={e => onUpdate(item.id, { dueDate: e.target.value })}
+                className="text-[11px] text-gray-500 bg-transparent border-none outline-none cursor-pointer w-full"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Notes */}
         <div className="flex-1 flex flex-col gap-1">
           <div className="flex items-center gap-1 text-gray-300">
             <MessageSquare className="w-3 h-3" />
@@ -289,7 +321,7 @@ function ItemCard({
           />
         </div>
 
-        {/* Editable charts toggle (risk only) */}
+        {/* Edit charts button (risk only) */}
         {isRisk && (
           <div>
             <button
@@ -303,7 +335,6 @@ function ItemCard({
               <BarChart2 className="w-3 h-3" />
               {showCharts ? "Hide Charts" : "Edit Charts"}
             </button>
-
             {showCharts && (
               <MiniRiskCharts
                 values={item.chartValues ?? DEFAULT_CHART}
@@ -319,30 +350,42 @@ function ItemCard({
 
 /* ── Risk drill-down ── */
 function RiskDrillDown({ items, onBack }: { items: Item[]; onBack: () => void }) {
-  const high   = items.filter(i => i.riskLevel === "high").length;
-  const medium = items.filter(i => i.riskLevel === "medium").length;
-  const low    = items.filter(i => i.riskLevel === "low").length;
+  // Aggregate chartValues across all items
+  const totals: ChartValues = { extreme: 0, high: 0, moderate: 0, low: 0, insignificant: 0 };
+  items.forEach(item => {
+    const cv = item.chartValues ?? DEFAULT_CHART;
+    DRILL_RISK_KEYS.forEach(k => { totals[k] += cv[k]; });
+  });
 
-  const pieData = [
-    { name: "High",   value: high,   color: "#ef4444" },
-    { name: "Medium", value: medium, color: "#f59e0b" },
-    { name: "Low",    value: low,    color: "#22c55e" },
-  ].filter(d => d.value > 0);
+  const pieData = DRILL_RISK_KEYS
+    .map(k => ({ name: DRILL_RISK_CONFIG[k].label, value: totals[k], color: DRILL_RISK_CONFIG[k].color }))
+    .filter(d => d.value > 0);
 
-  const catMap: Record<string, { high: number; medium: number; low: number }> = {};
+  // Category bar: sum chartValues per riskCategory
+  const catMap: Record<string, ChartValues & { name: string }> = {};
   items.forEach(item => {
     const cat = item.riskCategory || "Uncategorised";
-    if (!catMap[cat]) catMap[cat] = { high: 0, medium: 0, low: 0 };
-    catMap[cat][item.riskLevel ?? "low"]++;
+    if (!catMap[cat]) catMap[cat] = { name: cat, extreme: 0, high: 0, moderate: 0, low: 0, insignificant: 0 };
+    const cv = item.chartValues ?? DEFAULT_CHART;
+    DRILL_RISK_KEYS.forEach(k => { catMap[cat][k] += cv[k]; });
   });
-  const barData = Object.entries(catMap).map(([name, v]) => ({ name, ...v }));
+  const catBarData = Object.values(catMap);
 
+  // Status bar
   const statusCounts = {} as Record<Status, number>;
   (Object.keys(STATUS_STYLES) as Status[]).forEach(s => { statusCounts[s] = 0; });
   items.forEach(i => { statusCounts[i.status]++; });
   const statusBarData = (Object.keys(STATUS_STYLES) as Status[])
     .filter(s => statusCounts[s] > 0)
     .map(s => ({ name: STATUS_STYLES[s].label, count: statusCounts[s], fill: STATUS_CHART_COLOR[s] }));
+
+  const kpiRows = [
+    { key: "extreme" as DrillRisk,     ...DRILL_RISK_CONFIG.extreme     },
+    { key: "high" as DrillRisk,        ...DRILL_RISK_CONFIG.high        },
+    { key: "moderate" as DrillRisk,    ...DRILL_RISK_CONFIG.moderate    },
+    { key: "low" as DrillRisk,         ...DRILL_RISK_CONFIG.low         },
+    { key: "insignificant" as DrillRisk, ...DRILL_RISK_CONFIG.insignificant },
+  ];
 
   return (
     <div className="min-h-screen bg-gray-50 font-['Inter']">
@@ -362,19 +405,13 @@ function RiskDrillDown({ items, onBack }: { items: Item[]; onBack: () => void })
       </div>
 
       <div className="px-8 py-6 max-w-6xl mx-auto space-y-6">
-        {/* KPIs */}
-        <div className="grid grid-cols-3 gap-4">
-          {[
-            { label: "High Risk",   value: high,   color: "text-red-600",   bg: "bg-red-50",   border: "border-red-200"   },
-            { label: "Medium Risk", value: medium, color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-200" },
-            { label: "Low Risk",    value: low,    color: "text-green-600", bg: "bg-green-50", border: "border-green-200" },
-          ].map(k => (
-            <div key={k.label} className={`rounded-2xl border ${k.border} ${k.bg} p-5 flex items-center gap-4`}>
-              <span className={`text-4xl font-black ${k.color}`}>{k.value}</span>
-              <div>
-                <p className={`text-sm font-semibold ${k.color}`}>{k.label}</p>
-                <p className="text-xs text-gray-400">items</p>
-              </div>
+        {/* KPI row – 5 tiles */}
+        <div className="grid grid-cols-5 gap-3">
+          {kpiRows.map(k => (
+            <div key={k.key} className={`rounded-2xl border p-4 flex flex-col items-center gap-1 ${k.bg}`}
+              style={{ borderColor: k.color + "55" }}>
+              <span className="text-3xl font-black" style={{ color: k.color }}>{totals[k.key]}</span>
+              <p className={`text-xs font-semibold text-center leading-tight ${k.text}`}>{k.label}</p>
             </div>
           ))}
         </div>
@@ -383,10 +420,10 @@ function RiskDrillDown({ items, onBack }: { items: Item[]; onBack: () => void })
         <div className="grid grid-cols-2 gap-5">
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
             <h2 className="text-sm font-semibold text-gray-700 mb-4">Risk Level Distribution</h2>
-            <ResponsiveContainer width="100%" height={240}>
+            <ResponsiveContainer width="100%" height={250}>
               <PieChart>
                 <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={95} paddingAngle={3} dataKey="value"
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
+                  label={({ name, percent }) => `${name.slice(0,3)} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
                   {pieData.map((e, i) => <Cell key={i} fill={e.color} />)}
                 </Pie>
                 <Tooltip formatter={(v: number) => [`${v} items`]} />
@@ -397,7 +434,7 @@ function RiskDrillDown({ items, onBack }: { items: Item[]; onBack: () => void })
 
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
             <h2 className="text-sm font-semibold text-gray-700 mb-4">Status Breakdown</h2>
-            <ResponsiveContainer width="100%" height={240}>
+            <ResponsiveContainer width="100%" height={250}>
               <BarChart data={statusBarData} barSize={28}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
                 <XAxis dataKey="name" tick={{ fontSize: 11 }} />
@@ -411,20 +448,21 @@ function RiskDrillDown({ items, onBack }: { items: Item[]; onBack: () => void })
           </div>
         </div>
 
-        {/* Category breakdown */}
-        {barData.length > 0 && (
+        {/* Category stacked bar */}
+        {catBarData.length > 0 && (
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
             <h2 className="text-sm font-semibold text-gray-700 mb-4">Risk by Category</h2>
             <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={barData} barSize={20}>
+              <BarChart data={catBarData} barSize={22}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
                 <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                 <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
                 <Tooltip />
                 <Legend />
-                <Bar dataKey="high"   name="High"   fill="#ef4444" radius={[3,3,0,0]} stackId="a" />
-                <Bar dataKey="medium" name="Medium" fill="#f59e0b" radius={[3,3,0,0]} stackId="a" />
-                <Bar dataKey="low"    name="Low"    fill="#22c55e" radius={[3,3,0,0]} stackId="a" />
+                {DRILL_RISK_KEYS.map(k => (
+                  <Bar key={k} dataKey={k} name={DRILL_RISK_CONFIG[k].label}
+                    fill={DRILL_RISK_CONFIG[k].color} radius={[3,3,0,0]} stackId="a" />
+                ))}
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -436,28 +474,32 @@ function RiskDrillDown({ items, onBack }: { items: Item[]; onBack: () => void })
           <div className="grid grid-cols-3 gap-4">
             {items.map(item => {
               const cv = item.chartValues ?? DEFAULT_CHART;
-              const pd = (["high", "medium", "low"] as RiskLevel[])
-                .map(k => ({ name: k.charAt(0).toUpperCase() + k.slice(1), value: cv[k], color: RISK_COLORS[k] }))
+              const pd = DRILL_RISK_KEYS
+                .map(k => ({ name: DRILL_RISK_CONFIG[k].label, value: cv[k], color: DRILL_RISK_CONFIG[k].color }))
                 .filter(d => d.value > 0);
-              const bd = [
-                { name: "H", value: cv.high,   fill: RISK_COLORS.high   },
-                { name: "M", value: cv.medium, fill: RISK_COLORS.medium },
-                { name: "L", value: cv.low,    fill: RISK_COLORS.low    },
-              ];
+              const bd = DRILL_RISK_KEYS.map(k => ({
+                name: DRILL_RISK_CONFIG[k].label.slice(0, 3),
+                value: cv[k],
+                fill: DRILL_RISK_CONFIG[k].color,
+              }));
               return (
                 <div key={item.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 space-y-3">
                   <div className="flex items-start justify-between gap-2">
                     <p className="text-sm font-semibold text-gray-800 leading-snug">{item.title || "Untitled"}</p>
-                    {item.riskLevel && (
-                      <span className={`flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${RISK_STYLES[item.riskLevel].bg}`}>
-                        {RISK_STYLES[item.riskLevel].label}
-                      </span>
+                    {item.priority && <PriorityBadge priority={item.priority} />}
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <StatusBadge status={item.status} />
+                    {item.riskCategory && (
+                      <span className="text-xs text-gray-400 bg-gray-50 border border-gray-200 rounded-full px-2 py-0.5">{item.riskCategory}</span>
                     )}
                   </div>
-                  <StatusBadge status={item.status} />
-                  {item.riskCategory && <p className="text-xs text-gray-400">{item.riskCategory}</p>}
-
-                  {/* Mini charts */}
+                  {(item.startDate || item.dueDate) && (
+                    <div className="flex items-center gap-3 text-xs text-gray-400">
+                      {item.startDate && <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />Start: {new Date(item.startDate + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>}
+                      {item.dueDate && <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />Due: {new Date(item.dueDate + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>}
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-1 pt-1">
                     <div>
                       <p className="text-[9px] text-gray-400 uppercase tracking-wide text-center mb-0.5">Distribution</p>
@@ -475,11 +517,11 @@ function RiskDrillDown({ items, onBack }: { items: Item[]; onBack: () => void })
                       )}
                     </div>
                     <div>
-                      <p className="text-[9px] text-gray-400 uppercase tracking-wide text-center mb-0.5">H / M / L</p>
+                      <p className="text-[9px] text-gray-400 uppercase tracking-wide text-center mb-0.5">Breakdown</p>
                       <ResponsiveContainer width="100%" height={80}>
-                        <BarChart data={bd} barSize={12} margin={{ top: 4, right: 2, left: -30, bottom: 0 }}>
-                          <XAxis dataKey="name" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
-                          <YAxis allowDecimals={false} tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
+                        <BarChart data={bd} barSize={9} margin={{ top: 4, right: 2, left: -30, bottom: 0 }}>
+                          <XAxis dataKey="name" tick={{ fontSize: 8 }} axisLine={false} tickLine={false} />
+                          <YAxis allowDecimals={false} tick={{ fontSize: 8 }} axisLine={false} tickLine={false} />
                           <Tooltip contentStyle={{ fontSize: 10 }} />
                           <Bar dataKey="value" radius={[3, 3, 0, 0]}>
                             {bd.map((e, i) => <Cell key={i} fill={e.fill} />)}
@@ -523,8 +565,9 @@ export function Dashboard() {
       c.id === catId ? {
         ...c, items: [...c.items, {
           id: `item-${Date.now()}`,
-          title: "", status: "not-started", dueDate: "", comment: "",
-          ...(isRisk ? { riskLevel: "low" as RiskLevel, riskCategory: "", chartValues: { ...DEFAULT_CHART } } : {}),
+          title: "", status: "not-started", priority: "p3",
+          startDate: "", dueDate: "", comment: "",
+          ...(isRisk ? { riskCategory: "", chartValues: { ...DEFAULT_CHART } } : {}),
         }],
       } : c
     ));
