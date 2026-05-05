@@ -60,9 +60,9 @@ export const initialCategories: Category[] = [
 ];
 
 export const initialSupportItems: SupportItem[] = [
-  { id: "s1", description: "Need design review for API docs layout", taggedItemId: "d1", taggedCategoryId: "doc", dateRaised: "2026-05-03", status: "not-started" },
+  { id: "s1", description: "Need design review for API docs layout", taggedItemId: "d1", taggedCategoryId: "doc", dateRaised: "2026-05-03", status: "unresolved" },
 ];
 
 export const initialIssueItems: IssueItem[] = [
-  { id: "i1", description: "Onboarding guide blocked on pending UX assets", taggedItemId: "d2", taggedCategoryId: "doc", dateRaised: "2026-05-04", status: "in-progress" },
+  { id: "i1", description: "Onboarding guide blocked on pending UX assets", taggedItemId: "d2", taggedCategoryId: "doc", dateRaised: "2026-05-04", status: "unresolved" },
 ];

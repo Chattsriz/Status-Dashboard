@@ -6,8 +6,7 @@ import {
 import { SortableContext, useSortable, rectSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
-  PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis,
-  Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
 } from "recharts";
 import {
   Plus, Trash2, Calendar, MessageSquare, BarChart2,
@@ -39,7 +38,24 @@ function AutoTextarea({ value, onChange, placeholder, style }: {
 }
 
 /* ── Mini editable chart section ── */
-function MiniChartEdit({ values, onChange }: { values: ChartValues; onChange: (v: ChartValues) => void }) {
+const RADIAN = Math.PI / 180;
+function MiniPieLabel({ cx, cy, midAngle, innerRadius, outerRadius, value }: Record<string, number>) {
+  if (!value) return null;
+  const r = innerRadius + (outerRadius - innerRadius) * 0.55;
+  const x = cx + r * Math.cos(-midAngle * RADIAN);
+  const y = cy + r * Math.sin(-midAngle * RADIAN);
+  return (
+    <text x={x} y={y} fill="#fff" textAnchor="middle" dominantBaseline="central"
+      style={{ fontSize: "9px", fontWeight: 700, pointerEvents: "none" }}>
+      {value}
+    </text>
+  );
+}
+
+function MiniChartEdit({ values, onChange, summary, onSummaryChange }: {
+  values: ChartValues; onChange: (v: ChartValues) => void;
+  summary: string; onSummaryChange: (s: string) => void;
+}) {
   const pieData = DRILL_RISK_KEYS
     .map(k => ({ name: DRILL_RISK_CONFIG[k].label, value: values[k], color: DRILL_RISK_CONFIG[k].color }))
     .filter(d => d.value > 0);
@@ -60,32 +76,35 @@ function MiniChartEdit({ values, onChange }: { values: ChartValues; onChange: (v
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-2 gap-1">
+      <div className="grid grid-cols-2 gap-2" style={{ alignItems: "start" }}>
         <div>
           <p className="text-[9px] text-center mb-0.5" style={{ color: PALETTE.muted }}>Distribution</p>
-          <ResponsiveContainer width="100%" height={75}>
+          <ResponsiveContainer width="100%" height={90}>
             <PieChart>
               <Pie data={pieData.length ? pieData : [{ name: "–", value: 1, color: "#e5e7eb" }]}
-                cx="50%" cy="50%" innerRadius={18} outerRadius={32} paddingAngle={2} dataKey="value">
+                cx="50%" cy="50%" innerRadius={16} outerRadius={36} paddingAngle={2}
+                dataKey="value" labelLine={false}
+                label={pieData.length ? MiniPieLabel as unknown as boolean : false}>
                 {(pieData.length ? pieData : [{ color: "#e5e7eb" }]).map((e, i) => <Cell key={i} fill={e.color} />)}
               </Pie>
-              <Tooltip contentStyle={{ fontSize: 10 }} />
+              <Tooltip contentStyle={{ fontSize: 10 }} formatter={(v: number) => [`${v} items`]} />
             </PieChart>
           </ResponsiveContainer>
         </div>
-        <div>
-          <p className="text-[9px] text-center mb-0.5" style={{ color: PALETTE.muted }}>Breakdown</p>
-          <ResponsiveContainer width="100%" height={75}>
-            <BarChart data={DRILL_RISK_KEYS.map(k => ({ name: DRILL_RISK_CONFIG[k].label.slice(0, 3), value: values[k] }))}
-              barSize={9} margin={{ top: 2, right: 2, left: -32, bottom: 0 }}>
-              <XAxis dataKey="name" tick={{ fontSize: 7 }} axisLine={false} tickLine={false} />
-              <YAxis allowDecimals={false} tick={{ fontSize: 7 }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ fontSize: 10 }} />
-              <Bar dataKey="value" radius={[2, 2, 0, 0]}>
-                {DRILL_RISK_KEYS.map((k, i) => <Cell key={i} fill={DRILL_RISK_CONFIG[k].color} />)}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+          <p className="text-[9px]" style={{ color: PALETTE.muted }}>Summary</p>
+          <textarea
+            value={summary}
+            onChange={e => onSummaryChange(e.target.value)}
+            placeholder="Summarise risk findings…"
+            rows={4}
+            style={{
+              width: "100%", fontSize: "11px", lineHeight: "1.5", borderRadius: "8px",
+              padding: "6px 8px", border: `1px solid ${PALETTE.border}`,
+              backgroundColor: PALETTE.warm, color: PALETTE.dark,
+              outline: "none", resize: "none", fontFamily: "inherit",
+            }}
+          />
         </div>
       </div>
     </div>
@@ -262,8 +281,12 @@ function ItemCard({ item, catId, onUpdate, onDelete, isRisk, dragHandleProps }: 
               <BarChart2 size={12} /> {showCharts ? "Hide Charts" : "Edit Charts"}
             </button>
             {showCharts && (
-              <MiniChartEdit values={item.chartValues ?? DEFAULT_CHART}
-                onChange={cv => onUpdate(item.id, { chartValues: cv })} />
+              <MiniChartEdit
+                values={item.chartValues ?? DEFAULT_CHART}
+                onChange={cv => onUpdate(item.id, { chartValues: cv })}
+                summary={item.chartSummary ?? ""}
+                onSummaryChange={s => onUpdate(item.id, { chartSummary: s })}
+              />
             )}
 
             {/* Sub-charts */}

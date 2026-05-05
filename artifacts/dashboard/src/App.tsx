@@ -88,7 +88,7 @@ export default function App() {
             {riskDrillDown ? "Risk Assessments — Analytics" : "Weekly Status Dashboard"}
           </span>
           {!riskDrillDown && (
-            <span style={{ color: PALETTE.muted, fontSize: "0.75rem" }}>Week of May 4–10, 2026</span>
+            <span style={{ color: PALETTE.muted, fontSize: "0.75rem" }}>{new Date().toLocaleDateString("en-US", { weekday: undefined, year: "numeric", month: "long", day: "numeric" })}</span>
           )}
         </div>
         {!riskDrillDown && (

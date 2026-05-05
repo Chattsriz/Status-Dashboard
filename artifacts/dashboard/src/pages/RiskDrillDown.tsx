@@ -32,6 +32,21 @@ function PieLabel({ cx, cy, midAngle, outerRadius, name, value, percent }: Recor
   );
 }
 
+/* Always-visible slice label for mini pies */
+const RADIAN_MINI = Math.PI / 180;
+function SliceLabel({ cx, cy, midAngle, innerRadius, outerRadius, value }: Record<string, number>) {
+  if (!value) return null;
+  const r = innerRadius + (outerRadius - innerRadius) * 0.55;
+  const x = cx + r * Math.cos(-midAngle * RADIAN_MINI);
+  const y = cy + r * Math.sin(-midAngle * RADIAN_MINI);
+  return (
+    <text x={x} y={y} fill="#fff" textAnchor="middle" dominantBaseline="central"
+      style={{ fontSize: "10px", fontWeight: 700, pointerEvents: "none" }}>
+      {value}
+    </text>
+  );
+}
+
 /* Mini sub-chart pie */
 function MiniPie({ name, values }: { name: string; values: { extreme: number; high: number; moderate: number; low: number; insignificant: number } }) {
   const data = DRILL_RISK_KEYS
@@ -48,10 +63,12 @@ function MiniPie({ name, values }: { name: string; values: { extreme: number; hi
       <p style={{ fontSize: "10px", color: PALETTE.muted, marginBottom: "0.5rem" }}>
         {total} item{total !== 1 ? "s" : ""}
       </p>
-      <ResponsiveContainer width="100%" height={130}>
+      <ResponsiveContainer width="100%" height={140}>
         <PieChart>
           <Pie data={data.length ? data : [{ name: "–", value: 1, color: "#e5e7eb" }]}
-            cx="50%" cy="50%" outerRadius={55} dataKey="value" paddingAngle={2}>
+            cx="50%" cy="50%" outerRadius={58} dataKey="value" paddingAngle={2}
+            labelLine={false}
+            label={data.length ? SliceLabel as unknown as boolean : false}>
             {(data.length ? data : [{ color: "#e5e7eb" }]).map((e, i) => <Cell key={i} fill={e.color} />)}
           </Pie>
           <Tooltip formatter={(v: number) => [`${v} items`]} contentStyle={{ fontSize: "10px" }} />
