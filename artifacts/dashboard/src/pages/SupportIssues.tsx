@@ -110,7 +110,7 @@ function ItemTable<T extends SIRow>({
           </thead>
           <tbody>
             {rows.map((row, idx) => {
-              const ss = SUPPORT_STATUS[row.status];
+              const ss = SUPPORT_STATUS[row.status] ?? SUPPORT_STATUS.unresolved;
               const tag = getTagLabel(row.taggedItemId, row.taggedCategoryId, categories);
               return (
                 <tr key={row.id} style={{ borderBottom: `1px solid ${PALETTE.border}` }}
