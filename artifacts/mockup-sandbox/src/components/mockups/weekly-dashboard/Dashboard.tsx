@@ -5,7 +5,7 @@ import {
 } from "recharts";
 import { Plus, Trash2, ArrowLeft, Calendar, MessageSquare, ChevronRight, AlertTriangle, FileText, Users } from "lucide-react";
 
-type Status = "on-track" | "at-risk" | "delayed" | "complete" | "not-started";
+type Status = "not-started" | "in-progress" | "completed" | "on-hold";
 type RiskLevel = "high" | "medium" | "low";
 
 interface Item {
@@ -26,11 +26,10 @@ interface Category {
 }
 
 const STATUS_STYLES: Record<Status, { label: string; bg: string; text: string; dot: string }> = {
-  "on-track":    { label: "On Track",    bg: "bg-emerald-50",  text: "text-emerald-700", dot: "bg-emerald-500" },
-  "at-risk":     { label: "At Risk",     bg: "bg-amber-50",    text: "text-amber-700",   dot: "bg-amber-400"  },
-  "delayed":     { label: "Delayed",     bg: "bg-red-50",      text: "text-red-700",     dot: "bg-red-500"    },
-  "complete":    { label: "Complete",    bg: "bg-blue-50",     text: "text-blue-700",    dot: "bg-blue-500"   },
   "not-started": { label: "Not Started", bg: "bg-gray-100",    text: "text-gray-500",    dot: "bg-gray-400"   },
+  "in-progress": { label: "In Progress", bg: "bg-blue-50",     text: "text-blue-700",    dot: "bg-blue-500"   },
+  "completed":   { label: "Completed",   bg: "bg-emerald-50",  text: "text-emerald-700", dot: "bg-emerald-500" },
+  "on-hold":     { label: "On Hold",     bg: "bg-amber-50",    text: "text-amber-700",   dot: "bg-amber-400"  },
 };
 
 const RISK_STYLES: Record<RiskLevel, { label: string; color: string; bg: string; bar: string }> = {
@@ -51,27 +50,27 @@ const initialCategories: Category[] = [
   {
     id: "doc", name: "Documentation", icon: "doc",
     items: [
-      { id: "d1", title: "API Reference Docs",    status: "on-track",    dueDate: "2026-05-09", comment: "" },
-      { id: "d2", title: "Onboarding Guide",      status: "at-risk",     dueDate: "2026-05-12", comment: "Waiting on design assets from the UX team." },
+      { id: "d1", title: "API Reference Docs",    status: "in-progress", dueDate: "2026-05-09", comment: "" },
+      { id: "d2", title: "Onboarding Guide",      status: "on-hold",     dueDate: "2026-05-12", comment: "Waiting on design assets from the UX team." },
       { id: "d3", title: "Release Notes v2.4",    status: "not-started", dueDate: "2026-05-16", comment: "" },
-      { id: "d4", title: "Internal Wiki Update",  status: "complete",    dueDate: "2026-05-05", comment: "Merged and published." },
+      { id: "d4", title: "Internal Wiki Update",  status: "completed",   dueDate: "2026-05-05", comment: "Merged and published." },
     ],
   },
   {
     id: "risk", name: "Risk Assessment", icon: "risk",
     items: [
-      { id: "r1", title: "Vendor Dependency",   status: "delayed",     dueDate: "2026-05-07", comment: "Awaiting vendor SLA response.", riskLevel: "high",   riskCategory: "Vendor"         },
-      { id: "r2", title: "Security Audit Q2",   status: "on-track",    dueDate: "2026-05-20", comment: "",                              riskLevel: "high",   riskCategory: "Security"       },
-      { id: "r3", title: "Compliance Review",   status: "at-risk",     dueDate: "2026-05-14", comment: "Policy update still pending.",  riskLevel: "medium", riskCategory: "Compliance"     },
-      { id: "r4", title: "Infra Capacity Plan", status: "on-track",    dueDate: "2026-05-18", comment: "",                              riskLevel: "medium", riskCategory: "Infrastructure" },
+      { id: "r1", title: "Vendor Dependency",   status: "on-hold",     dueDate: "2026-05-07", comment: "Awaiting vendor SLA response.", riskLevel: "high",   riskCategory: "Vendor"         },
+      { id: "r2", title: "Security Audit Q2",   status: "in-progress", dueDate: "2026-05-20", comment: "",                              riskLevel: "high",   riskCategory: "Security"       },
+      { id: "r3", title: "Compliance Review",   status: "in-progress", dueDate: "2026-05-14", comment: "Policy update still pending.",  riskLevel: "medium", riskCategory: "Compliance"     },
+      { id: "r4", title: "Infra Capacity Plan", status: "in-progress", dueDate: "2026-05-18", comment: "",                              riskLevel: "medium", riskCategory: "Infrastructure" },
       { id: "r5", title: "Ops Runbook",         status: "not-started", dueDate: "2026-05-22", comment: "",                              riskLevel: "low",    riskCategory: "Operational"    },
     ],
   },
   {
     id: "align", name: "Alignment & Others", icon: "align",
     items: [
-      { id: "a1", title: "Cross-Team Sync",      status: "complete",    dueDate: "2026-05-05", comment: "Notes shared in Confluence." },
-      { id: "a2", title: "OKR Mid-Cycle Review", status: "on-track",    dueDate: "2026-05-14", comment: "" },
+      { id: "a1", title: "Cross-Team Sync",      status: "completed",   dueDate: "2026-05-05", comment: "Notes shared in Confluence." },
+      { id: "a2", title: "OKR Mid-Cycle Review", status: "in-progress", dueDate: "2026-05-14", comment: "" },
       { id: "a3", title: "Stakeholder Deck",     status: "not-started", dueDate: "2026-05-19", comment: "" },
     ],
   },
@@ -222,7 +221,7 @@ function RiskDrillDown({ items, onBack }: { items: Item[]; onBack: () => void })
   items.forEach(i => { statusCounts[i.status]++; });
   const statusBarData = (Object.keys(STATUS_STYLES) as Status[])
     .filter(s => statusCounts[s] > 0)
-    .map(s => ({ name: STATUS_STYLES[s].label, count: statusCounts[s], fill: s === "on-track" ? "#22c55e" : s === "at-risk" ? "#f59e0b" : s === "delayed" ? "#ef4444" : s === "complete" ? "#3b82f6" : "#9ca3af" }));
+    .map(s => ({ name: STATUS_STYLES[s].label, count: statusCounts[s], fill: s === "completed" ? "#22c55e" : s === "in-progress" ? "#3b82f6" : s === "on-hold" ? "#f59e0b" : "#9ca3af" }));
 
   return (
     <div className="min-h-screen bg-gray-50 font-['Inter']">
